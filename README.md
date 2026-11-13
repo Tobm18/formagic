@@ -135,6 +135,10 @@ node dev/package.mjs
 
 → `dist/Formagic-<version>.zip`, la version étant celle de `manifest.json`.
 
+La clé publique `key` de `manifest.json` fixe l'identifiant de l'extension non empaquetée
+(`hmlfboamiccijpnnndpadfnljonaekna`), quel que soit le dossier : déplacer ou renommer le dossier ne fait donc
+pas perdre les données locales. Elle doit être retirée du manifeste pour une publication sur le Chrome Web Store.
+
 ## Contribuer
 
 Les signalements de bugs (avec, si possible, un PDF d'exemple sans données personnelles) et les pull requests sont
