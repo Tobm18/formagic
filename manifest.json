@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Formagic",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAooU+ED9U4zgtUsGBSNSO/jKngG9cU2DnLs0OxTAH5R4QzMDyymXgo0U5usilZOJhrOiF2Ks2ezwTc6zBZgkbJ6GJbLVTbpU2wehTDMwZwQdGQOlRSYlLvrc7oIAJ+nMspxyeAt9TB/U4X+gPSLiIMO050GUU3YVb5SUxpZweJIN7by+NNAEBY3cP72/6NF7ClQQxnbo5TUcak0nATJQuSlrOv6PyS3H6THlYNMPMOxhAXQXCNyFtj7XDoXApM4kJ9816L+dLS/V89IXyIxj7dTHNmeAMBGo73NFTVmxHMGcrFTjbVxU5+pZpB5jErDpMqa6z3XGcg3aiinrOJi8czQIDAQAB",
   "description": "Remplissez n’importe quel PDF comme par magie : champs détectés automatiquement, signature, annotations. Gratuit et 100 % local.",
   "homepage_url": "https://github.com/Tobm18/formagic",

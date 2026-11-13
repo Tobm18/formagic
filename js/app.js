@@ -14,6 +14,7 @@ import * as D from './dialogs.js';
 import * as OPS from './pdfops.js';
 import * as FD from './formdetect.js';
 import * as P from './profile.js';
+import * as BK from './backup.js';
 import { addRecent, getRecent, removeRecent, saveSession, loadSession, deleteSession, idbSet, idbGet, getFileHandle, setFileHandle, getDirHint } from './store.js';
 import { bbox, normalize } from './geom.js';
 
@@ -1310,6 +1311,8 @@ $('#btnMore').onclick = (e) => {
     { label: 'Diviser le document…', icon: 'split', disabled: dis, run: splitDocument },
     '-',
     { label: 'Paramètres…', icon: 'settings', run: openSettings },
+    { label: 'Exporter mes données…', icon: 'download', run: exportData },
+    { label: 'Importer mes données…', icon: 'open', run: importData },
     { label: 'Raccourcis clavier', icon: 'keyboard', kbd: '?', run: D.shortcutsDialog },
   ]);
 };
@@ -1356,6 +1359,28 @@ async function editProtection() {
   S.docSettings.protect = r === 'remove' ? null : r;
   toast(r === 'remove' ? 'Protection retirée.' : 'Le document sera chiffré à l\'enregistrement.');
 }
+// ---------- Sauvegarde des données (passer à une autre installation) ----------
+async function exportData() {
+  const data = await BK.collect();
+  const day = new Date().toISOString().slice(0, 10);
+  downloadBlob(new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' }), `formagic-donnees-${day}.json`);
+  toast(`Données exportées : ${BK.summary(data)}. Ce fichier contient vos informations personnelles : gardez-le pour vous.`, { timeout: 8000 });
+}
+function importData() {
+  const input = h('input', { type: 'file', accept: '.json,application/json' });
+  input.onchange = async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    let data;
+    try { data = BK.parse(await file.text()); } catch (e) { toast(e.message, { type: 'error' }); return; }
+    if (!confirm(`Importer ${BK.summary(data)} ?\nElles s'ajoutent à vos données actuelles (en cas de doublon, celles du fichier l'emportent). La page sera rechargée.`)) return;
+    await BK.restore(data);
+    if (!S.dirty || confirm('Modifications non enregistrées : recharger quand même ? (elles pourront être restaurées)')) location.reload();
+    else toast('Données importées : elles seront actives au prochain chargement.');
+  };
+  input.click();
+}
+
 async function openSettings() {
   let intercept = true;
   if (hasChrome) intercept = (await chrome.storage.local.get({ intercept: true })).intercept;

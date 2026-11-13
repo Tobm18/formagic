@@ -70,6 +70,9 @@ aperçu de la valeur**, et une pastille **« ✨ Remplir »** sous le champ le r
 - Les données restent **uniquement sur cet ordinateur**. Menu ⋮ › Formulaire › **Mes informations…** pour les voir,
   les corriger, tout effacer ou désactiver les propositions ; **Remplir avec mes informations** pour relancer le remplissage.
 - Volontairement non mémorisés : n° de sécurité sociale, IBAN, numéros fiscaux et autres données sensibles.
+- **Changer d'ordinateur ou d'installation** : menu ⋮ › **Exporter mes données…** enregistre vos informations, signatures,
+  fichiers récents (ceux qui ont une adresse) et réglages dans un fichier JSON ; **Importer mes données…** les ajoute
+  à l'autre installation. Ce fichier contient vos informations personnelles : ne le partagez pas.
 
 ## Enregistrer puis corriger plus tard
 
@@ -109,7 +112,7 @@ Chrome. Les bibliothèques sont fournies dans `lib/` ([PDF.js](https://github.co
 | `viewer.html`, `js/app.js` | Lecteur : ouverture, enregistrement, impression, Mes informations |
 | `js/annotations.js`, `js/state.js` | Annotations, champs, annuler / rétablir |
 | `js/formdetect.js` | Détection heuristique des champs de formulaire |
-| `js/profile.js`, `js/store.js` | Profil de remplissage et stockage local (IndexedDB) |
+| `js/profile.js`, `js/store.js`, `js/backup.js` | Profil de remplissage, stockage local (IndexedDB), export / import des données |
 | `dev/` | Serveur de test, génération des PDF de test et des icônes, packaging (non inclus dans le paquet) |
 
 Hors extension, avec Node 22 ou plus récent :
