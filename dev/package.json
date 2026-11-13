@@ -1,0 +1,16 @@
+{
+  "name": "formagic-dev",
+  "private": true,
+  "description": "Outils de développement de Formagic (serveur de test, génération des PDF de test et des icônes, packaging)",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "serve": "node serve.mjs",
+    "test-pdfs": "node make-test-pdfs.mjs && node make-form-test.mjs && node make-filled-test.mjs",
+    "icons": "node make-icons.mjs",
+    "package": "node package.mjs"
+  },
+  "dependencies": {
+    "@cantoo/pdf-lib": "^2.11.1"
+  }
+}

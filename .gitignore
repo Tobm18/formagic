@@ -1,0 +1,17 @@
+# Paquets générés
+dist/
+*.zip
+
+# Dépendances des outils de développement
+node_modules/
+
+# PDF de test privés ou soumis à droits d'auteur (non publiés)
+dev/test/local/
+
+# Divers
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/
+.claude/

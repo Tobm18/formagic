@@ -1,0 +1,31 @@
+# Publie le paquet de l'extension quand un tag vX.Y.Z est poussé (la version doit correspondre à manifest.json)
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Vérifier la version
+        run: |
+          v=$(node -p "require('./manifest.json').version")
+          test "v$v" = "$GITHUB_REF_NAME" || { echo "Le tag $GITHUB_REF_NAME ne correspond pas à manifest.json ($v)"; exit 1; }
+      - name: Construire le paquet
+        run: node dev/package.mjs
+      - name: Publier la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
+            && gh release upload "$GITHUB_REF_NAME" dist/*.zip --clobber \
+            || gh release create "$GITHUB_REF_NAME" dist/*.zip --title "Formagic ${GITHUB_REF_NAME#v}" --generate-notes

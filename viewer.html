@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Formagic</title>
+<link rel="icon" href="icons/icon32.png">
+<link rel="stylesheet" href="lib/pdfjs/pdf_viewer.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- Barre principale -->
+  <header id="topbar" class="bar">
+    <div class="grp">
+      <button class="ib" id="btnSidebar" data-icon="sidebar" title="Panneau latéral (F4)"></button>
+      <button class="ib" id="btnOpen" data-icon="open" title="Ouvrir (Ctrl+O)"></button>
+      <button class="ib" id="btnSave" data-icon="save" title="Enregistrer (Ctrl+S)"></button>
+      <button class="ib" id="btnFile" data-icon="download" title="Fichier : enregistrer sous, exporter…"></button>
+      <button class="ib" id="btnPrint" data-icon="print" title="Imprimer (Ctrl+P)"></button>
+      <span class="sep"></span>
+      <button class="ib" id="btnUndo" data-icon="undo" title="Annuler (Ctrl+Z)"></button>
+      <button class="ib" id="btnRedo" data-icon="redo" title="Rétablir (Ctrl+Y)"></button>
+    </div>
+    <div class="grp title-grp">
+      <span id="docTitle" title="">Formagic</span>
+      <span id="dirtyDot" hidden title="Modifications non enregistrées">●</span>
+    </div>
+    <div class="grp">
+      <button class="ib" id="btnPrev" data-icon="up" title="Page précédente"></button>
+      <input id="pageInput" class="page-input" type="text" inputmode="numeric" value="1" aria-label="Numéro de page">
+      <span id="pageCount" class="muted">/ 0</span>
+      <button class="ib" id="btnNext" data-icon="down" title="Page suivante"></button>
+      <span class="sep"></span>
+      <button class="ib" id="btnZoomOut" data-icon="minus" title="Zoom arrière (Ctrl -)"></button>
+      <select id="zoomSelect" title="Zoom">
+        <option value="auto">Automatique</option>
+        <option value="page-width">Pleine largeur</option>
+        <option value="page-fit">Page entière</option>
+        <option value="page-actual">Taille réelle</option>
+        <option value="0.5">50 %</option>
+        <option value="0.75">75 %</option>
+        <option value="1">100 %</option>
+        <option value="1.25">125 %</option>
+        <option value="1.5">150 %</option>
+        <option value="2">200 %</option>
+        <option value="3">300 %</option>
+        <option value="4">400 %</option>
+        <option value="custom" hidden id="zoomCustom">—</option>
+      </select>
+      <button class="ib" id="btnZoomIn" data-icon="plus" title="Zoom avant (Ctrl +)"></button>
+      <span class="sep"></span>
+      <button class="ib" id="btnSearch" data-icon="search" title="Rechercher (Ctrl+F)"></button>
+      <button class="ib" id="btnTheme" data-icon="moon" title="Thème clair / sombre"></button>
+      <button class="ib" id="btnMore" data-icon="more" title="Plus d'outils"></button>
+    </div>
+  </header>
+
+  <!-- Outils d'édition -->
+  <nav id="toolbar" class="bar">
+    <div class="tools" id="tools">
+      <button class="tb" data-tool="select" data-icon="select" title="Sélection (V)"></button>
+      <button class="tb" data-tool="pan" data-icon="hand" title="Main / déplacer (H)"></button>
+      <span class="sep"></span>
+      <button class="tb" data-tool="text" data-icon="text" title="Ajouter du texte (T)"></button>
+      <button class="tb" data-tool="edittext" data-icon="edittext" title="Modifier un texte existant (M)"></button>
+      <span class="sep"></span>
+      <button class="tb" data-tool="highlight" data-icon="highlight" title="Surligner (U)"></button>
+      <button class="tb" data-tool="underline" data-icon="underline" title="Souligner"></button>
+      <button class="tb" data-tool="strike" data-icon="strike" title="Barrer"></button>
+      <span class="sep"></span>
+      <button class="tb" data-tool="ink" data-icon="pen" title="Dessin à main levée (D)"></button>
+      <button class="tb" data-tool="eraser" data-icon="eraser" title="Gomme : supprime les annotations touchées (E)"></button>
+      <button class="tb" data-tool="rect" data-icon="rect" title="Rectangle (R)"></button>
+      <button class="tb" data-tool="ellipse" data-icon="ellipse" title="Ellipse (O)"></button>
+      <button class="tb" data-tool="line" data-icon="line" title="Ligne (L)"></button>
+      <button class="tb" data-tool="arrow" data-icon="arrow" title="Flèche (A)"></button>
+      <span class="sep"></span>
+      <button class="tb" data-tool="image" data-icon="image" title="Insérer une image (I)"></button>
+      <button class="tb" data-tool="signature" data-icon="signature" title="Signature (S)"></button>
+      <button class="tb" data-tool="stamp" data-icon="stamp" title="Tampon"></button>
+      <button class="tb" data-tool="check" data-icon="check" title="Coche ✓ (cliquer pour poser)"></button>
+      <button class="tb" data-tool="cross" data-icon="cross" title="Croix ✗"></button>
+      <button class="tb" data-tool="dot" data-icon="dot" title="Point ●"></button>
+      <button class="tb" data-tool="date" data-icon="calendar" title="Date du jour"></button>
+      <span class="sep"></span>
+      <button class="tb" data-tool="note" data-icon="note" title="Commentaire (N)"></button>
+      <button class="tb" data-tool="link" data-icon="link" title="Lien (K)"></button>
+      <button class="tb" data-tool="whiteout" data-icon="whiteout" title="Masquer (rectangle blanc ou de couleur) (W)"></button>
+      <button class="tb" data-tool="redact" data-icon="redact" title="Caviardage sécurisé : supprime réellement le contenu"></button>
+      <button class="tb" data-tool="crop" data-icon="crop" title="Rogner la page (C)"></button>
+      <button class="tb" data-tool="field" data-icon="form" title="Champs de formulaire (F) : tracer, déplacer, redimensionner ou supprimer les zones à remplir"></button>
+    </div>
+    <div id="props" class="props"></div>
+  </nav>
+
+  <main id="main">
+    <aside id="sidebar" hidden>
+      <div class="side-tabs">
+        <button class="st active" data-pane="thumbs" data-icon="grid" title="Pages"></button>
+        <button class="st" data-pane="outline" data-icon="list" title="Signets"></button>
+        <button class="st" data-pane="annots" data-icon="layers" title="Annotations"></button>
+      </div>
+      <div class="side-pane" id="pane-thumbs">
+        <div class="pane-actions" id="thumbActions">
+          <span class="muted" id="thumbSelInfo">Pages</span>
+          <span class="flex"></span>
+          <button class="ib sm" data-pageop="rotl" data-icon="rotccw" title="Pivoter à gauche"></button>
+          <button class="ib sm" data-pageop="rotr" data-icon="rotcw" title="Pivoter à droite"></button>
+          <button class="ib sm" data-pageop="dup" data-icon="copy" title="Dupliquer"></button>
+          <button class="ib sm" data-pageop="extract" data-icon="extract" title="Extraire en nouveau PDF"></button>
+          <button class="ib sm" data-pageop="blank" data-icon="blank" title="Insérer une page vierge après"></button>
+          <button class="ib sm" data-pageop="delete" data-icon="trash" title="Supprimer (Suppr)"></button>
+        </div>
+        <div id="thumbs" class="thumbs" tabindex="0"></div>
+      </div>
+      <div class="side-pane" id="pane-outline" hidden><div id="outline" class="outline"></div></div>
+      <div class="side-pane" id="pane-annots" hidden><div id="annotList" class="annot-list"></div></div>
+      <div id="sideResize" title="Redimensionner"></div>
+    </aside>
+
+    <div id="viewerWrap">
+      <div id="viewerContainer" tabindex="0">
+        <div id="viewer" class="pdfViewer"></div>
+      </div>
+
+      <div id="findbar" hidden>
+        <input id="findInput" type="search" placeholder="Rechercher dans le document" autocomplete="off">
+        <span id="findCount" class="muted"></span>
+        <button class="ib sm" id="findPrev" data-icon="up" title="Précédent (Maj+Entrée)"></button>
+        <button class="ib sm" id="findNext" data-icon="down" title="Suivant (Entrée)"></button>
+        <label class="chk" title="Respecter la casse"><input type="checkbox" id="findCase">Aa</label>
+        <label class="chk" title="Mots entiers"><input type="checkbox" id="findWord">Mot</label>
+        <label class="chk" title="Accents"><input type="checkbox" id="findDiac">é</label>
+        <button class="ib sm" id="findClose" data-icon="x" title="Fermer (Échap)"></button>
+      </div>
+
+      <div id="loading" hidden><div class="spinner"></div><div id="loadingText">Chargement…</div><div class="progress"><div id="loadingBar"></div></div></div>
+
+      <section id="welcome" hidden>
+        <div class="welcome-card">
+          <img src="icons/icon128.png" alt="" width="72" height="72">
+          <h1>Formagic</h1>
+          <p class="muted">Lire, annoter, signer, remplir et réorganiser vos PDF. Tout reste sur votre ordinateur.</p>
+          <div class="welcome-actions">
+            <button class="btn primary" id="wOpen" data-icon="open">Ouvrir un fichier</button>
+            <button class="btn" id="wNew" data-icon="fileplus">Document vierge</button>
+          </div>
+          <p class="muted small">ou glissez-déposez des PDF ou des images (JPG, PNG…) ici — plusieurs images deviennent un seul PDF.</p>
+          <div id="fileAccessTip" class="tip" hidden>
+            Pour ouvrir automatiquement les PDF de votre ordinateur (double-clic dans l'Explorateur avec Chrome comme lecteur), activez
+            <b>« Autoriser l'accès aux URL de fichier »</b> dans <a href="#" id="openExtDetails">les détails de l'extension</a>.
+          </div>
+          <div id="recentWrap" hidden>
+            <h2>Récents</h2>
+            <ul id="recentList"></ul>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<div id="dropHint" hidden><div>Déposez pour ouvrir</div></div>
+<div id="menu" class="menu" hidden></div>
+<div id="toasts"></div>
+<div id="cards" aria-live="polite"></div>
+<dialog id="dlg"></dialog>
+<div id="printContainer"></div>
+<input type="file" id="fileInput" accept="application/pdf,.pdf,image/*" multiple hidden>
+<input type="file" id="imageInput" accept="image/*" hidden>
+<input type="file" id="pdfInput" accept="application/pdf,.pdf" multiple hidden>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

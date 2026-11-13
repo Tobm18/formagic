@@ -1,0 +1,9 @@
+Formagic
+Copyright 2026 Tobm18 and the Formagic contributors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+It bundles third-party software, distributed under their own licenses
+(see THIRD_PARTY_NOTICES.md):
+- PDF.js (lib/pdfjs), Copyright Mozilla Foundation, Apache License 2.0
+- @cantoo/pdf-lib (lib/pdf-lib), Copyright Andrew Dillon and contributors, MIT License
