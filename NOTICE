@@ -7,3 +7,5 @@ It bundles third-party software, distributed under their own licenses
 (see THIRD_PARTY_NOTICES.md):
 - PDF.js (lib/pdfjs), Copyright Mozilla Foundation, Apache License 2.0
 - @cantoo/pdf-lib (lib/pdf-lib), Copyright Andrew Dillon and contributors, MIT License
+- Tesseract.js and Tesseract.js-core (lib/tesseract), Copyright the Tesseract.js contributors, Apache License 2.0
+- Tesseract OCR French trained data (lib/tesseract/lang), Copyright Google and the Tesseract contributors, Apache License 2.0

@@ -125,6 +125,9 @@ export function resetForNewDocument() {
   geomCache.clear();
   textRunsCache.clear();
   sampleCache.clear();
+  scanCache.clear();
+  ocrCache.clear();
+  ocrDone.clear();
   S.selection.clear();
   closeEditor(false);
   closeNotePop();
@@ -380,6 +383,7 @@ export function renderOverlay(pageId) {
   o.mainSvg.innerHTML = list.filter((a) => a.type !== 'markup' && a.type !== 'field').map((a) => annotSvg(a)).join('') + docDecorations(pageId);
   renderSelection(pageId);
   renderSuggestions(pageId);
+  renderOcrLines(pageId);
 }
 
 // ---------- Suggestions « Mes informations » : aperçu de la valeur dans le champ + pastille sous le champ ----------
@@ -516,7 +520,7 @@ export function pageNumberPos(pn, W, H, txt) {
 function renderSelection(pageId) {
   const o = overlays.get(pageId);
   if (!o) return;
-  for (const el of [...o.ui.children]) if (!el.classList.contains('pa-editor') && !el.classList.contains('pa-sugg')) el.remove();
+  for (const el of [...o.ui.children]) if (!el.classList.contains('pa-editor') && !el.classList.contains('pa-sugg') && !el.classList.contains('pa-ocrline')) el.remove();
   const sel = [...S.selection].map(getAnnot).filter((a) => a && a.pageId === pageId);
   for (const a of sel) {
     const b = bbox(a);
@@ -958,7 +962,7 @@ function onPointerMove(e) {
     for (const id of drag.ids) {
       for (const el of pc.o.host.querySelectorAll(`[data-aid="${id}"]`)) el.setAttribute('transform', t);
     }
-    for (const el of pc.o.ui.children) if (!el.classList.contains('pa-editor')) el.style.transform = `translate(${dx}px, ${dy}px)`;
+    for (const el of pc.o.ui.children) if (!el.classList.contains('pa-editor') && !el.classList.contains('pa-ocrline')) el.style.transform = `translate(${dx}px, ${dy}px)`;
     return;
   }
   if (drag.kind === 'resize') {
@@ -1496,7 +1500,9 @@ async function editExistingText(pc, p) {
   const tol = 2;
   const run = runs.find((r) => p.x >= r.x0 - tol && p.x <= r.x1 + tol && p.y >= r.y0 - tol && p.y <= r.y1 + tol);
   if (!run) {
-    emit('hint', 'Cliquez directement sur un texte du PDF pour le modifier. (Les PDF scannés ne contiennent pas de texte modifiable.)');
+    // PDF scanné : le texte est une image, on propose de le convertir (OCR)
+    if (await isScannedPage(pageId)) { emit('scan-edit', { pageId, x: p.x, y: p.y }); return; }
+    emit('hint', runs.length ? 'Cliquez directement sur un texte du PDF pour le modifier.' : 'Cette page ne contient pas de texte modifiable.');
     return;
   }
   // Ne pas modifier deux fois le même passage
@@ -1512,9 +1518,10 @@ async function editExistingText(pc, p) {
   const baseOff = (lh - (fdef.asc + fdef.desc) * size) / 2 + fdef.asc * size;
   checkpoint();
   const pad = Math.max(0.6, size * 0.08);
-  const cover = { id: uid(), type: 'whiteout', pageId, x: run.x0 - pad, y: run.y0 - pad, w: run.x1 - run.x0 + pad * 2, h: run.y1 - run.y0 + pad * 2, color: bg, linked: true };
+  const textId = uid();
+  const cover = { id: uid(), type: 'whiteout', pageId, x: run.x0 - pad, y: run.y0 - pad, w: run.x1 - run.x0 + pad * 2, h: run.y1 - run.y0 + pad * 2, color: bg, linked: true, unit: textId };
   const text = {
-    id: uid(), type: 'text', pageId, x: run.x0 - TEXT_PAD, y: run.base - baseOff - TEXT_PAD, text: run.str.trim(),
+    id: textId, type: 'text', pageId, x: run.x0 - TEXT_PAD, y: run.base - baseOff - TEXT_PAD, text: run.str.trim(),
     font: ff.font, bold: ff.bold, italic: ff.italic, size, color: fg, align: 'left', bg: null, opacity: 1,
     srcRun: { x0: run.x0, base: run.base }, coverId: cover.id,
   };
@@ -1523,6 +1530,189 @@ async function editExistingText(pc, p) {
   setSelection([text.id]);
   openEditor(text, false);
   editing.cp = true; // le checkpoint est déjà posé
+}
+
+// ---------- PDF scannés : conversion du texte reconnu (OCR) en texte modifiable ----------
+const scanCache = new Map();  // pageId -> Promise<boolean>
+const ocrCache = new Map();   // pageId -> Promise<lignes>
+const ocrDone = new Map();    // pageId -> lignes (reconnaissance terminée)
+
+/**
+ * Page scannée : des images couvrent une grande partie de la page (ou la page n'a aucun texte mais des images).
+ * Le calcul suit le déterminant de la matrice courante : une image est peinte dans le carré unité.
+ */
+export function isScannedPage(pageId) {
+  if (!scanCache.has(pageId)) {
+    const p = (async () => {
+      const g = await ensurePageGeom(pageId);
+      if (!g) return false;
+      const { OPS, AnnotationMode } = S.pdfjsLib;
+      const ol = await g.pdfPage.getOperatorList({ annotationMode: AnnotationMode.DISABLE });
+      const [vx0, vy0, vx1, vy1] = g.pdfPage.view;
+      const pageArea = Math.abs((vx1 - vx0) * (vy1 - vy0)) || 1;
+      const IMG = new Set([OPS.paintImageXObject, OPS.paintInlineImageXObject, OPS.paintImageXObjectRepeat, OPS.paintImageMaskXObject, OPS.paintJpegXObject].filter((x) => x != null));
+      const det = (m) => (m && m.length >= 4 ? m[0] * m[3] - m[1] * m[2] : 1);
+      let cur = 1, area = 0, images = 0;
+      const stack = [];
+      for (let i = 0; i < ol.fnArray.length; i++) {
+        const fn = ol.fnArray[i], args = ol.argsArray[i];
+        if (fn === OPS.save) stack.push(cur);
+        else if (fn === OPS.restore) cur = stack.length ? stack.pop() : 1;
+        else if (fn === OPS.transform) cur *= det(args);
+        else if (fn === OPS.paintFormXObjectBegin) { stack.push(cur); const m = args?.[0]; if (m && m.length === 6) cur *= det(m); }
+        else if (fn === OPS.paintFormXObjectEnd) cur = stack.length ? stack.pop() : 1;
+        else if (IMG.has(fn)) { area += Math.abs(cur); images++; }
+      }
+      const cover = area / pageArea;
+      if (cover >= 0.6) return true; // image pleine page
+      if (!images || cover < 0.02) return false;
+      const runs = (await getTextRuns(pageId)).length;
+      return runs === 0 || (cover >= 0.25 && runs < 5);
+    })();
+    p.catch(() => scanCache.delete(pageId));
+    scanCache.set(pageId, p);
+  }
+  return scanCache.get(pageId).catch(() => false);
+}
+
+/** Pages scannées du document (indices de S.pages) */
+export async function scannedPageIds() {
+  const out = [];
+  for (const m of S.pages) if (await isScannedPage(m.id)) out.push(m.id);
+  return out;
+}
+
+/** Texte reconnu d'une page (mis en cache). onProgress(0..1) pendant la reconnaissance. */
+export function ocrPage(pageId, { onProgress } = {}) {
+  let p = ocrCache.get(pageId);
+  if (!p) {
+    const pdf = S.doc?.pdf;
+    p = (async () => {
+      const OCR = await import('./ocr.js');
+      const g = await ensurePageGeom(pageId);
+      const meta = S.pages.find((m) => m.id === pageId);
+      if (!g || !meta) return [];
+      const scale = OCR.ocrScale(g.baseW, g.baseH);
+      const canvas = await renderPageToCanvas(g.pdfPage, scale, meta.baseRot, { annotationMode: S.pdfjsLib.AnnotationMode.DISABLE });
+      try {
+        return await OCR.recognizePage(canvas, scale, { onProgress });
+      } finally { canvas.width = canvas.height = 0; }
+    })();
+    ocrCache.set(pageId, p);
+    p.then((lines) => {
+      if (S.doc?.pdf !== pdf || ocrCache.get(pageId) !== p) return;
+      ocrDone.set(pageId, lines);
+      renderOverlay(pageId);
+    }, () => { if (ocrCache.get(pageId) === p) ocrCache.delete(pageId); });
+  }
+  return p;
+}
+
+/** Interrompt la reconnaissance en cours (les pages déjà reconnues restent en cache). */
+export async function cancelOcr() {
+  for (const [id, p] of ocrCache) if (!ocrDone.has(id)) ocrCache.delete(id);
+  const OCR = await import('./ocr.js');
+  await OCR.cancelOcr();
+}
+
+const isOcrConverted = (pageId, l) => S.annots.some((a) => a.type === 'text' && a.pageId === pageId && a.srcRun &&
+  Math.abs(a.srcRun.x0 - l.x0) < 0.5 && Math.abs(a.srcRun.base - l.base) < 0.5);
+
+/** Cache + texte pour une ligne reconnue (même principe que « Modifier le texte » sur un PDF natif). */
+function ocrLineAnnots(pageId, l, whole) {
+  const fdef = FONTS[l.font] || FONTS.helv;
+  const size = l.size;
+  const lh = 1.2 * size;
+  const baseOff = (lh - (fdef.asc + fdef.desc) * size) / 2 + fdef.asc * size;
+  const pad = Math.max(0.8, size * 0.1);
+  const textId = uid();
+  const cover = { id: uid(), type: 'whiteout', pageId, x: l.x0 - pad, y: l.y0 - pad, w: l.x1 - l.x0 + pad * 2, h: l.y1 - l.y0 + pad * 2, color: l.bg, linked: true, ocr: true, unit: textId };
+  const text = normalize({
+    id: textId, type: 'text', pageId, x: l.ox - TEXT_PAD, y: l.base - baseOff - TEXT_PAD, text: l.str,
+    font: l.font, bold: l.bold, italic: l.italic, size, color: l.color, align: 'left', bg: null, opacity: 1,
+    srcRun: { x0: l.x0, base: l.base }, coverId: cover.id, ocr: whole ? 'page' : 'line',
+  });
+  return [cover, text];
+}
+
+function lineAt(lines, p) {
+  const tol = 2;
+  const hit = lines.filter((l) => p.x >= l.x0 - tol && p.x <= l.x1 + tol && p.y >= l.y0 - tol && p.y <= l.y1 + tol);
+  if (hit.length) return hit.sort((a, b) => Math.abs(p.y - (a.y0 + a.y1) / 2) - Math.abs(p.y - (b.y0 + b.y1) / 2))[0];
+  // tolérance verticale pour les petites lignes
+  return lines.find((l) => p.x >= l.x0 - tol && p.x <= l.x1 + tol && p.y >= l.y0 - l.size * 0.35 && p.y <= l.y1 + l.size * 0.35) || null;
+}
+
+/** Une ligne de page entièrement convertie mais ignorée (reconnaissance peu fiable) peut être convertie à la demande. */
+const reliable = (l) => l.conf >= 55 && (l.y1 - l.y0) < 80;
+
+export const isPageOcrConverted = (pageId) => S.annots.some((a) => a.pageId === pageId && a.ocr === 'page');
+
+/**
+ * Convertit le texte reconnu de plusieurs pages (une seule étape d'annulation).
+ * onPage(i, n, progress) suit l'avancement. Renvoie le nombre de lignes converties.
+ */
+export async function convertScanPages(pageIds, { onPage } = {}) {
+  const pdf = S.doc?.pdf;
+  const results = [];
+  for (let i = 0; i < pageIds.length; i++) {
+    onPage?.(i, pageIds.length, 0);
+    const lines = await ocrPage(pageIds[i], { onProgress: (q) => onPage?.(i, pageIds.length, q) });
+    results.push([pageIds[i], lines]);
+  }
+  if (S.doc?.pdf !== pdf) return 0;
+  const add = [];
+  for (const [pageId, lines] of results) {
+    if (!S.pages.some((m) => m.id === pageId)) continue;
+    for (const l of lines) if (reliable(l) && !isOcrConverted(pageId, l)) add.push(...ocrLineAnnots(pageId, l, true));
+  }
+  if (!add.length) return 0;
+  checkpoint();
+  S.annots.push(...add);
+  changed([...new Set(add.map((a) => a.pageId))]);
+  return add.length / 2;
+}
+
+/**
+ * Ouvre à l'édition la ligne reconnue sous le point p (la convertit si besoin).
+ * Renvoie 'opened' | 'none' (aucun texte reconnu à cet endroit) | 'stale'.
+ */
+export async function editScanLineAt(pageId, p, { onProgress } = {}) {
+  const pdf = S.doc?.pdf;
+  const lines = await ocrPage(pageId, { onProgress });
+  if (S.doc?.pdf !== pdf || !S.pages.some((m) => m.id === pageId)) return 'stale';
+  const l = lineAt(lines, p);
+  if (!l) return 'none';
+  const existing = S.annots.find((a) => a.type === 'text' && a.pageId === pageId && a.srcRun &&
+    Math.abs(a.srcRun.x0 - l.x0) < 0.5 && Math.abs(a.srcRun.base - l.base) < 0.5);
+  if (existing) { setSelection([existing.id]); openEditor(existing, false); return 'opened'; }
+  commitEditor();
+  checkpoint();
+  const [cover, text] = ocrLineAnnots(pageId, l, false);
+  S.annots.push(cover, text);
+  changed([pageId]);
+  setSelection([text.id]);
+  openEditor(text, false);
+  if (editing?.id === text.id) editing.cp = true; // le point d'annulation est déjà posé
+  return 'opened';
+}
+
+/** Contour des lignes reconnues non encore converties (visible avec l'outil « Modifier le texte ») */
+function renderOcrLines(pageId) {
+  const o = overlays.get(pageId);
+  if (!o) return;
+  for (const el of [...o.ui.querySelectorAll('.pa-ocrline')]) el.remove();
+  const lines = ocrDone.get(pageId);
+  if (!lines?.length) return;
+  const frag = document.createDocumentFragment();
+  for (const l of lines) {
+    if (isOcrConverted(pageId, l)) continue;
+    const d = document.createElement('div');
+    d.className = 'pa-ocrline';
+    Object.assign(d.style, { left: l.x0 + 'px', top: l.y0 + 'px', width: (l.x1 - l.x0) + 'px', height: (l.y1 - l.y0) + 'px' });
+    frag.append(d);
+  }
+  o.ui.append(frag);
 }
 
 export { translateAnnot as translateAnnotPublic };

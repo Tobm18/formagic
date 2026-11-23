@@ -6,3 +6,4 @@
 *.pfb binary
 *.ttf binary
 *.icc binary
+*.gz binary

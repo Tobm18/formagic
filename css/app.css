@@ -448,6 +448,10 @@ kbd { font: 11px ui-monospace, Consolas, monospace; padding: 1px 5px; border: 1p
 }
 #viewerContainer.tool-markup .pa-hl [data-aid], #viewerContainer.tool-edittext .pa-hl [data-aid] { pointer-events: none; }
 #viewerContainer.tool-edittext .pa-main [data-aid]:not(.t-text) { pointer-events: none; }
+/* Lignes reconnues sur une page scannée (outil « Modifier le texte ») */
+.pa-ui .pa-ocrline { position: absolute; display: none; pointer-events: none; outline: calc(1px / var(--scale-factor, 1)) dashed color-mix(in srgb, var(--sel) 55%, transparent); outline-offset: 1px; }
+#viewerContainer.tool-edittext .pa-ui .pa-ocrline { display: block; }
+#loading .btn { margin-top: 4px; }
 
 /* Zones de champ de formulaire */
 .pa-hl .t-field { cursor: text; }

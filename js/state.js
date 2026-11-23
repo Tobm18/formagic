@@ -31,7 +31,7 @@ export function defaultDocSettings() {
 // ---------- Modifications depuis le dernier enregistrement ----------
 // Empreinte de chaque annotation au moment de l'ouverture ou du dernier enregistrement.
 let savedState = new Map(); // id -> { sig, pageId, unit }
-const unitOf = (a) => a.fieldId || a.id; // un champ rempli = une modification, quel que soit le nombre d'objets
+const unitOf = (a) => a.fieldId || a.unit || a.id; // un champ rempli (ou un texte et son cache) = une modification
 const sigOf = (a) => JSON.stringify(a);
 /** À appeler après un enregistrement (ou à l'ouverture) : l'état actuel devient la référence. */
 export function markSaved(annots = S.annots) {

@@ -83,6 +83,23 @@ Cela marche aussi pour un formulaire rempli avec un autre logiciel, tant que la 
 
 Pour tout autre texte de la page, l'outil **Modifier le texte (M)** reste disponible.
 
+## Modifier un PDF scanné
+
+Dans un PDF scanné, le texte n'est qu'une image. Avec l'outil **Modifier le texte (M)**, un clic sur une ligne d'un scan
+ouvre un avertissement : pour être modifié, le texte doit être **converti**. Formagic le reconnaît (OCR) puis remplace
+l'image de chaque ligne par du vrai texte, dans la police standard la plus ressemblante (Helvetica, Times ou Courier,
+gras et italique compris), à la même taille et dans la même couleur, sur un cache de la couleur du papier. Au choix :
+
+- **tout le texte du document** (toutes les pages scannées) ;
+- **tout le texte de la page** (les autres pages sont converties quand on les modifie) ;
+- **seulement les lignes modifiées** : le reste du scan garde son aspect d'origine.
+
+Le choix vaut pour tout le document ; `Ctrl+Z` annule une conversion. Les lignes reconnues sont encadrées en pointillés
+avec l'outil M. La reconnaissance se fait **entièrement sur l'ordinateur** (Tesseract, modèle français, aucun envoi) et
+prend quelques secondes par page. Elle peut se tromper (chiffres, symboles rares) : relisez le texte converti. Les lignes
+peu lisibles (logos, tampons, écriture manuscrite) ne sont pas converties d'office, mais un clic dessus les convertit.
+Une fois enregistré, le texte converti est du vrai texte : il se sélectionne et se recherche.
+
 **Ctrl+S sur un fichier du disque** : un PDF ouvert par le bouton Ouvrir, par glisser-déposer ou depuis les récents est
 réécrit directement. Un PDF ouvert d'un double-clic dans l'Explorateur (adresse `file:///`) ne peut pas être modifié
 par une extension sans votre accord : au premier Ctrl+S, le sélecteur propose le même nom, choisissez le fichier d'origine
@@ -98,13 +115,16 @@ l'enregistrent directement (Chrome peut seulement demander d'autoriser la modifi
 
 - Le texte ajouté utilise les polices standard PDF (Helvetica, Times, Courier) : alphabet latin (accents français, €, etc.).
 - « Modifier le texte » recouvre la ligne d'origine par une nouvelle zone de texte (le PDF ne stocke pas de paragraphes éditables).
+- PDF scannés : la police convertie est une police standard proche, pas la police d'origine ; une ligne inclinée est
+  remplacée par une ligne droite, et le cache peut se voir sur un papier très texturé.
 - Le caviardage transforme la page concernée en image pour que le texte masqué disparaisse réellement.
 
 ## Développement
 
 L'extension est du JavaScript (modules ES) sans étape de compilation : le dossier du dépôt se charge tel quel dans
 Chrome. Les bibliothèques sont fournies dans `lib/` ([PDF.js](https://github.com/mozilla/pdf.js) pour l'affichage,
-[@cantoo/pdf-lib](https://github.com/cantoo-scribe/pdf-lib) pour l'écriture).
+[@cantoo/pdf-lib](https://github.com/cantoo-scribe/pdf-lib) pour l'écriture, [Tesseract.js](https://github.com/naptha/tesseract.js)
+pour la reconnaissance du texte des scans, chargé seulement quand on modifie un scan).
 
 | Dossier / fichier | Rôle |
 |---|---|
@@ -113,6 +133,7 @@ Chrome. Les bibliothèques sont fournies dans `lib/` ([PDF.js](https://github.co
 | `js/annotations.js`, `js/state.js` | Annotations, champs, annuler / rétablir |
 | `js/formdetect.js` | Détection heuristique des champs de formulaire |
 | `js/profile.js`, `js/store.js`, `js/backup.js` | Profil de remplissage, stockage local (IndexedDB), export / import des données |
+| `js/ocr.js` | Reconnaissance du texte des PDF scannés (Tesseract) et choix de la police ressemblante |
 | `dev/` | Serveur de test, génération des PDF de test et des icônes, packaging (non inclus dans le paquet) |
 
 Hors extension, avec Node 22 ou plus récent :
@@ -126,6 +147,7 @@ puis ouvrir http://localhost:8765/viewer.html?file=/dev/test/sample.pdf (`PORT=�
 Formulaires de test : `node dev/make-form-test.mjs` (formulaire vierge `flatform.pdf`) puis
 `node dev/make-filled-test.mjs` (même formulaire rempli par « un autre logiciel » : `flatform-rempli.pdf`).
 Les autres PDF de test se régénèrent avec `node dev/make-test-pdfs.mjs` (après `npm install` dans `dev/`).
+PDF scanné de test (`scanned.pdf`) : `node dev/make-scan-test.mjs` (nécessite Playwright et Chromium).
 Chaque champ détecté porte `src` : la règle qui l'a produit. Placez dans `dev/test/local/` (ignoré par git) les PDF
 réels qui servent à vérifier la détection, notamment des documents longs sans formulaire, pour repérer les faux champs
 (sommaire, tableaux, encadrés, schémas, graphiques).

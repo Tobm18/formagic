@@ -71,13 +71,17 @@ bus.on('scalechanging', ({ scale, presetValue }) => {
 });
 
 // ---------- Chargement ----------
-function showLoading(text, p = null) {
+function showLoading(text, p = null, onCancel = undefined) {
   $('#loading').hidden = false;
   $('#loadingText').textContent = text;
   $('#loadingBar').parentNode.hidden = p == null;
   if (p != null) $('#loadingBar').style.width = Math.round(p * 100) + '%';
+  if (onCancel !== undefined) {
+    $('#loadingCancel').hidden = !onCancel;
+    $('#loadingCancel').onclick = onCancel || null;
+  }
 }
-function hideLoading() { $('#loading').hidden = true; }
+function hideLoading() { $('#loading').hidden = true; $('#loadingCancel').hidden = true; $('#loadingCancel').onclick = null; }
 async function withLoading(text, fn) {
   showLoading(text);
   try { return await fn((p) => showLoading(text, p)); }
@@ -717,6 +721,86 @@ function removeDetectedFields() {
 }
 on('hint', (msg) => toast(msg));
 
+// ---------- PDF scanné : conversion du texte (OCR) pour le modifier ----------
+let ocrBusy = false;
+/**
+ * Clic de l'outil « Modifier le texte » sur une page scannée (x, y : point cliqué),
+ * ou commande du menu (fromMenu : redemande toujours quoi convertir).
+ */
+on('scan-edit', async ({ pageId, x, y, ask, fromMenu }) => {
+  if (ocrBusy || !S.doc) return;
+  const doc = S.doc;
+  if (!doc.ocrMode && doc.ocrDeclined && !ask) {
+    toast('Le texte de cette page scannée est une image : il doit être converti pour être modifié.',
+      { actions: [{ label: 'Convertir…', run: () => emit('scan-edit', { pageId, x, y, ask: true }) }] });
+    return;
+  }
+  ocrBusy = true;
+  try {
+    if (!doc.ocrMode || fromMenu) {
+      const scanned = await A.scannedPageIds();
+      const mode = await D.scanConvertDialog({ scannedPages: scanned.length });
+      if (S.doc !== doc) return;
+      if (!mode) { doc.ocrDeclined = true; return; }
+      doc.ocrMode = mode; // choix mémorisé pour ce document
+    }
+    const pt = x == null ? null : { x, y };
+    if (!pt && doc.ocrMode === 'line') {
+      if (S.tool !== 'edittext') setTool('edittext');
+      toast('Cliquez sur la ligne à modifier : elle sera convertie en texte.');
+      return;
+    }
+    let cancelled = false;
+    const cancel = () => { cancelled = true; A.cancelOcr(); };
+    const label = (i, n) => n > 1 ? `Reconnaissance du texte… page ${i + 1} / ${n}` : 'Reconnaissance du texte…';
+    let converted = 0;
+    try {
+      if (doc.ocrMode === 'line' || A.isPageOcrConverted(pageId)) {
+        showLoading(label(0, 1), 0, cancel);
+      } else {
+        let ids = [pageId];
+        if (doc.ocrMode === 'doc') {
+          const all = await A.scannedPageIds();
+          // la page cliquée d'abord, puis les autres dans l'ordre, sans celles déjà converties
+          ids = [pageId, ...all.filter((id) => id !== pageId && !A.isPageOcrConverted(id))];
+          doc.ocrMode = 'page'; // les pages ajoutées ensuite seront converties à la demande
+        }
+        showLoading(label(0, ids.length), 0, cancel);
+        converted = await A.convertScanPages(ids, { onPage: (i, n, q) => { if (!cancelled) showLoading(label(i, n), (i + q) / n); } });
+      }
+      if (cancelled || S.doc !== doc) return;
+      const r = pt ? await A.editScanLineAt(pageId, pt, { onProgress: (q) => { if (!cancelled) showLoading(label(0, 1), q); } }) : null;
+      if (cancelled || S.doc !== doc) return;
+      hideLoading();
+      if (converted) {
+        if (!pt && S.tool !== 'edittext') setTool('edittext');
+        toast(`${converted} ligne${converted > 1 ? 's' : ''} de texte converties : relisez-les, la reconnaissance peut faire des erreurs.`,
+          { actions: [{ label: 'Annuler', run: () => undo() }], timeout: 6000 });
+      } else if (r === 'none') {
+        toast('Aucun texte reconnu à cet endroit. Cliquez sur une ligne de texte (encadrée en pointillés).');
+      } else if (!pt) {
+        toast('Aucun nouveau texte à convertir.');
+      }
+    } catch (e) {
+      if (e?.name !== 'AbortError' && !cancelled) {
+        console.error(e);
+        toast('La reconnaissance du texte a échoué : ' + (e?.message || e), { type: 'error' });
+      }
+    } finally {
+      hideLoading();
+    }
+  } finally {
+    ocrBusy = false;
+  }
+});
+
+async function convertScannedText() {
+  const ids = await A.scannedPageIds();
+  if (!ids.length) { toast('Aucune page scannée dans ce document : son texte se modifie directement avec l\'outil Modifier le texte (M).'); return; }
+  const cur = S.pages[viewer.currentPageNumber - 1]?.id;
+  emit('scan-edit', { pageId: ids.includes(cur) ? cur : ids[0], ask: true, fromMenu: true });
+}
+
 function pickFile(sel, multiple = false) {
   return new Promise((resolve) => {
     const input = $(sel);
@@ -1293,6 +1377,7 @@ $('#btnMore').onclick = (e) => {
     { label: 'Filigrane…', icon: 'droplet', disabled: dis, checked: !!S.docSettings.watermark, run: editWatermark },
     { label: 'Numéros de page…', icon: 'hash', disabled: dis, checked: !!S.docSettings.pageNumbers, run: editPageNumbers },
     { label: 'Protéger par mot de passe…', icon: 'lock', disabled: dis, checked: !!S.docSettings.protect, run: editProtection },
+    { label: 'Convertir le texte scanné (OCR)…', icon: 'scan', disabled: dis, run: convertScannedText },
     '-',
     { header: 'Formulaire' },
     { label: 'Détecter les champs à remplir', icon: 'form', disabled: dis, run: detectAllFields },

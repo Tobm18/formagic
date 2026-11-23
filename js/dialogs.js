@@ -504,6 +504,29 @@ export async function splitDialog(pageCount) {
   });
 }
 
+// ---------- PDF scanné : conversion du texte (OCR) ----------
+/** Prévient que le texte scanné va être converti et demande quoi convertir. Renvoie 'doc' | 'page' | 'line' | null. */
+export async function scanConvertDialog({ scannedPages = 1 } = {}) {
+  const opt = (value, title, desc, checked = false) => {
+    const r = h('input', { type: 'radio', name: 'ocrmode', value, checked });
+    return { r, el: h('label', { class: 'check-row', style: { alignItems: 'flex-start', marginTop: '8px' } }, r, h('span', {}, h('b', {}, title), h('br'), h('span', { class: 'muted small' }, desc))) };
+  };
+  const opts = [
+    scannedPages > 1 ? opt('doc', `Tout le texte du document (${scannedPages} pages scannées)`, 'Chaque ligne devient du texte modifiable. Peut prendre quelques secondes par page.', true) : null,
+    opt('page', 'Tout le texte de cette page', 'Les autres pages seront converties quand vous les modifierez.', scannedPages <= 1),
+    opt('line', 'Seulement les lignes que je modifie', 'Le reste du scan garde son aspect d\'origine.'),
+  ].filter(Boolean);
+  const body = h('div', {},
+    h('p', { style: { margin: '4px 0' } }, 'Ce document est un ', h('b', {}, 'PDF scanné'), ' : son texte est une image et ne peut pas être modifié tel quel.'),
+    h('p', { style: { margin: '8px 0' } }, 'Pour le modifier, Formagic va ', h('b', {}, 'convertir le texte'), ' : il le reconnaît (OCR) puis le remplace par du vrai texte, dans la police standard la plus ressemblante (Helvetica, Times ou Courier), à la même taille et dans la même couleur.'),
+    h('div', { class: 'tip', style: { marginTop: '6px' } }, 'Le texte converti remplace l\'image d\'origine : l\'aspect peut légèrement changer et la reconnaissance peut faire des erreurs, relisez-le. Tout se passe sur cet ordinateur, rien n\'est envoyé. Ctrl+Z annule la conversion.'),
+    h('div', { style: { marginTop: '10px' } }, ...opts.map((o) => o.el)));
+  return openDialog({
+    title: 'Modifier un PDF scanné', body, width: 520,
+    buttons: [{ label: 'Annuler', value: null }, { label: 'Convertir', primary: true, value: () => opts.find((o) => o.r.checked)?.r.value || 'page' }],
+  });
+}
+
 // ---------- Paramètres ----------
 export async function settingsDialog(extra = {}) {
   const s = getSettings();
